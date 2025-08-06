@@ -1,0 +1,13 @@
+{
+  // reduce VS Code file-watch pressure on WSL
+  "files.watcherExclude": {
+    "**/.git/objects/**": true,
+    "**/.git/subtree-cache/**": true,
+    "**/node_modules/**": true
+  },
+  // fall back to polling (less efficient but more stable)
+  "remote.WSL.fileWatcher.polling": true,
+  // increase timeouts / keep-alive for remote
+  "remote.WSL.server.connectTimeout": 60,
+  "remote.WSL.server.keepAliveProbeInterval": 30
+}
