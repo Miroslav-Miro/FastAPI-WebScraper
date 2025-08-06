@@ -1,39 +1,27 @@
-from typing import Iterable, Dict
-import logging
-from sqlalchemy.orm import Session
-from sqlalchemy.exc import IntegrityError
-
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from app.models import ScrapedItem
+import uuid
 
-logger = logging.getLogger(__name__)
 
-
-def ingest_items(items: Iterable[Dict], db: Session) -> dict:
-    """
-    Save scraped items into the DB.
-    Skips duplicates by URL (unique constraint) and returns counts.
-    """
-    added = 0
-    skipped = 0
-
-    for i in items:
-        obj = ScrapedItem(
-            title=i["title"],
-            description=i.get("description"),
-            url=i["url"],
+def ingest_items(items, db, owner_id):
+    rows = []
+    for it in items:
+        rows.append(
+            {
+                "id": uuid.uuid4(),
+                "title": it["title"],
+                "description": it.get("description", ""),
+                "url": it["url"],
+                "owner_id": owner_id,
+            }
         )
-        try:
-            db.add(obj)
-            db.commit()
-            added += 1
-        except IntegrityError:
-            db.rollback()
-            skipped += 1
-            logger.info("Duplicate (by URL) skipped: %s", i["url"])
-        except Exception:
-            db.rollback()
-            logger.exception("DB error while inserting: %s", i)
 
-    result = {"added": added, "skipped_duplicates": skipped}
-    logger.info("Scrape import result: %s", result)
-    return result
+    stmt = (
+        pg_insert(ScrapedItem)
+        .values(rows)
+        .on_conflict_do_nothing(index_elements=["owner_id", "url"])
+    )
+
+    result = db.execute(stmt)
+    db.commit()
+    return {"inserted": result.rowcount}

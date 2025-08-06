@@ -19,12 +19,12 @@ logger = logging.getLogger(__name__)
 @router.post("/scrape", response_model=dict)
 def run_scraper(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # requires auth
+    current_user: User = Depends(get_current_user),
 ):
     """
     Trigger the scraping process. Only authenticated users can run this.
     """
-    logger.info("Scrape requested by user: %s", current_user.username)
+    logger.info("Items requested by user: %s", current_user.username)
     try:
         items = scrape_books()
     except requests.RequestException:
@@ -33,41 +33,52 @@ def run_scraper(
             detail="Upstream site unavailable or request failed",
         )
 
-    result = ingest_items(items, db)
+    result = ingest_items(items, db, owner_id=current_user.id)
     return result
 
 
+# GET /items
 @router.get("/items", response_model=list[ItemRead])
 def list_items(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # protect listing if needed
+    current_user: User = Depends(get_current_user),
 ):
-    """List all scraped items."""
     logger.info("Items listed by user: %s", current_user.username)
-    return db.query(ScrapedItem).all()
+    return db.query(ScrapedItem).filter(ScrapedItem.owner_id == current_user.id).all()
 
 
+# GET /items/{item_id}
 @router.get("/items/{item_id}", response_model=ItemRead)
 def get_item(
     item_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # protect detail view
+    current_user: User = Depends(get_current_user),
 ):
-    item = db.query(ScrapedItem).filter(ScrapedItem.id == item_id).first()
+    item = (
+        db.query(ScrapedItem)
+        .filter(ScrapedItem.id == item_id, ScrapedItem.owner_id == current_user.id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
     return item
 
 
+# DELETE /items/{item_id}
 @router.delete("/items/{item_id}")
 def delete_item(
     item_id: UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # protect deletion
+    current_user: User = Depends(get_current_user),
 ):
-    item = db.query(ScrapedItem).filter(ScrapedItem.id == item_id).first()
+    item = (
+        db.query(ScrapedItem)
+        .filter(ScrapedItem.id == item_id, ScrapedItem.owner_id == current_user.id)
+        .first()
+    )
     if not item:
         raise HTTPException(status_code=404, detail="Item not found")
+
     db.delete(item)
     db.commit()
     logger.info("Item %s deleted by user %s", item_id, current_user.username)
