@@ -5,10 +5,10 @@ from sqlalchemy.exc import IntegrityError
 from uuid import UUID
 import requests
 
-from app.database import get_db
-from app.models import ScrapedItem, User
+from app.core.database import get_db
+from app.database.models import ScrapedItem, User
 from app.schemas import ItemRead
-from app.scraper import scrape_books
+from app.services.scraper import scrape_books
 from app.services.ingest import ingest_items
 from app.dependencies.auth import get_current_user
 

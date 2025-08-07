@@ -5,7 +5,7 @@ from fastapi.responses import JSONResponse
 from starlette import status
 from contextlib import asynccontextmanager
 
-from app.logging_config import configure_logging
+from app.core.logging_config import configure_logging
 from app.routes import auth_router, api_router
 
 

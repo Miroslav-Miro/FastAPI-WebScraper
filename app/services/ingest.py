@@ -1,5 +1,5 @@
 from sqlalchemy.dialects.postgresql import insert as pg_insert
-from app.models import ScrapedItem
+from app.database.models import ScrapedItem
 import uuid
 
 
