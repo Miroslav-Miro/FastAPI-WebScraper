@@ -1,3 +1,13 @@
+"""
+Database configuration and session management for the Web Scraper API.
+
+- Loads database connection details from environment variables.
+- Creates SQLAlchemy engine and session factory.
+- Provides a session generator dependency for FastAPI routes.
+
+Uses PostgreSQL with psycopg2 driver.
+"""
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
 import os
@@ -22,6 +32,15 @@ Base = declarative_base()
 
 
 def get_db():
+    """
+    Provide a database session for a request and ensure it is closed after use.
+
+    This function is a generator yielding a SQLAlchemy SessionLocal instance.
+    It is designed to be used as a FastAPI dependency to handle DB sessions.
+
+    Yields:
+        Session: SQLAlchemy database session instance.
+    """
     db = SessionLocal()
     try:
         yield db

@@ -1,3 +1,13 @@
+"""
+Web scraper service for books.toscrape.com.
+
+Implements polite scraping with respect to robots.txt,
+rate limiting, request timeout, and user agent configuration.
+
+Functions:
+- scrape_books: Scrapes the first page of books, returning a list of book items.
+"""
+
 import os
 import time
 from typing import List, Dict, Optional
@@ -19,12 +29,27 @@ logger = logging.getLogger(__name__)
 
 
 def _get_session() -> requests.Session:
+    """
+    Create and configure a requests.Session with the User-Agent header.
+
+    Returns:
+        requests.Session: Configured HTTP session.
+    """
     s = requests.Session()
     s.headers.update({"User-Agent": USER_AGENT})
     return s
 
 
 def _load_robots(base_url: str) -> robotparser.RobotFileParser:
+    """
+    Load and parse the robots.txt from the base URL.
+
+    Args:
+        base_url (str): The base URL to load robots.txt from.
+
+    Returns:
+        robotparser.RobotFileParser: Parsed robots.txt rules.
+    """
     rp = robotparser.RobotFileParser()
     rp.set_url(urljoin(base_url, "robots.txt"))
     try:
@@ -36,6 +61,16 @@ def _load_robots(base_url: str) -> robotparser.RobotFileParser:
 
 
 def _can_fetch(rp: robotparser.RobotFileParser, url: str) -> bool:
+    """
+    Check if the scraper is allowed to fetch the given URL according to robots.txt.
+
+    Args:
+        rp (robotparser.RobotFileParser): Parsed robots.txt rules.
+        url (str): URL to check.
+
+    Returns:
+        bool: True if allowed to fetch, False otherwise.
+    """
     if not RESPECT_ROBOTS:
         return True
     try:
@@ -47,8 +82,13 @@ def _can_fetch(rp: robotparser.RobotFileParser, url: str) -> bool:
 
 def scrape_books() -> List[Dict[str, Optional[str]]]:
     """
-    Scrape 1 page of books.toscrape.com and return a list of items,
-    each item is {title, description, url}
+    Scrape the first page of books.toscrape.com.
+
+    For each book, scrape the title, description, and URL,
+    respecting robots.txt and rate limits.
+
+    Returns:
+        List[Dict[str, Optional[str]]]: List of book items with keys: title, description, url.
     """
     list_url = urljoin(BASE_URL, "catalogue/page-1.html")
 
