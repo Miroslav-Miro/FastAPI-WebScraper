@@ -5,7 +5,7 @@ Includes endpoints for user registration and login,
 handling password hashing, user verification, and JWT token creation.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Cookie, HTTPException, status, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 from app.core.database import get_db
@@ -20,11 +20,9 @@ from jose import JWTError, jwt
 from app.schemas import TokenData
 from passlib.context import CryptContext
 
-
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter()
-
 
 @router.post("/register", response_model=UserRead)
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -84,3 +82,34 @@ def login(
         )
     access_token = create_access_token(user.username)
     return {"access_token": access_token, "token_type": "bearer"}
+
+@router.post("/refresh")
+def refresh_access_token(
+    response: Response,
+    refresh_token: str | None = Cookie(default=None, alias="refresh_token")
+):
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Missing refresh token")
+
+    try:
+        payload = verify_refresh_token(refresh_token)
+        username = payload.get("sub")
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired. Please log in again.")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+
+    new_access = create_access_token(username)
+
+    new_refresh = create_refresh_token(username)
+    response.set_cookie(
+        key="refresh_token",
+        value=new_refresh,
+        httponly=True,
+        secure=False,
+        samesite="lax",
+        max_age=REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+        path="/",
+    )
+
+    return {"access_token": new_access, "token_type": "bearer"}

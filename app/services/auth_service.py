@@ -8,7 +8,7 @@ JWT token creation, and current user retrieval from tokens.
 from fastapi import Depends, HTTPException, status
 from passlib.context import CryptContext
 from datetime import datetime, timedelta
-from jose import jwt
+from jose import jwt, JWTError, ExpiredSignatureError
 from fastapi.security import OAuth2PasswordBearer
 import os
 
@@ -17,12 +17,14 @@ from requests import Session
 from app.core.database import get_db
 from app.database.models import User
 
-
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = os.getenv("ALGORITHM", "HS256")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
+REFRESH_SECRET_KEY = os.getenv("REFRESH_SECRET_KEY", SECRET_KEY)
+
 
 
 def verify_password(plain: str, hashed: str) -> bool:
@@ -109,3 +111,25 @@ def anonymous_only(user=Depends(get_current_user)):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="You are already logged in."
         )
+
+def create_access_token(subject: str, expires_delta: timedelta | None = None) -> str:
+    expire = datetime.utcnow() + (expires_delta or timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    to_encode = {"sub": subject, "exp": expire, "type": "access"}
+    return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+
+def create_refresh_token(subject: str, expires_days: int | None = None) -> str:
+    expire = datetime.utcnow() + timedelta(days=expires_days or REFRESH_TOKEN_EXPIRE_DAYS)
+    to_encode = {"sub": subject, "exp": expire, "type": "refresh"}
+    return jwt.encode(to_encode, REFRESH_SECRET_KEY, algorithm=ALGORITHM)
+
+def verify_access_token(token: str) -> dict:
+    payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    if payload.get("type") != "access":
+        raise JWTError("Invalid token type")
+    return payload
+
+def verify_refresh_token(token: str) -> dict:
+    payload = jwt.decode(token, REFRESH_SECRET_KEY, algorithms=[ALGORITHM])
+    if payload.get("type") != "refresh":
+        raise JWTError("Invalid token type")
+    return payload
